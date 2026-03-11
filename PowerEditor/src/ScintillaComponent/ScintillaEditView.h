@@ -721,6 +721,20 @@ protected:
 	static std::string _defaultCharList;
 	bool _isMultiPasteActive = false;
 
+	// Middle-click auto-scroll state
+	bool _autoScrolling = false;
+	POINT _autoScrollOrigin = {};
+	UINT_PTR _autoScrollTimerID = 0;
+	double _autoScrollAccumV = 0.0;
+	double _autoScrollAccumH = 0.0;
+	static constexpr UINT_PTR AUTO_SCROLL_TIMER_ID = 0xA570;
+
+	// Smooth scroll state
+	double _smoothScrollVelocity = 0.0;
+	double _smoothScrollAccum = 0.0;
+	UINT_PTR _smoothScrollTimerID = 0;
+	static constexpr UINT_PTR SMOOTH_SCROLL_TIMER_ID = 0xA571;
+
 //Lexers and Styling
 	void restyleBuffer();
 	static const char* concatToBuildKeywordList(std::string& kwl, LangType langType, int keywordIndex);

@@ -326,6 +326,9 @@
 #define IDC_DISPLAY_STATIC                             6429
 #define IDC_OPENSAVEDIR_CHECK_DROPFOLDEROPENFILES      6431
 #define IDC_CHECK_ADDNEWDOCONSTARTUP                   6432
+#define IDC_DEFAULTSAVEDIR_STATIC                      6433
+#define IDC_DEFAULTSAVEDIR_EDIT                        6434
+#define IDD_DEFAULTSAVEDIR_BROWSE_BUTTON               6435
 #define IDC_CHECK_USECONTENTASTABNAME                  6433
 
 #define IDD_PREFERENCE_SUB_DEFAULTDIRECTORY            6450

@@ -680,7 +680,7 @@ struct AdvancedOptions final
 
 struct DarkModeConf final
 {
-	bool _isEnabled = false;
+	bool _isEnabled = true;
 	bool _isEnabledPlugin = true;
 	NppDarkMode::ColorTone _colorTone = NppDarkMode::ColorTone::blackTone;
 	NppDarkMode::Colors _customColors = NppDarkMode::getDarkModeDefaultColors();
@@ -710,7 +710,7 @@ struct NppGUI final
 	bool _statusBarShow = true;
 	bool _menuBarShow = true;
 
-	int _tabStatus = (TAB_DRAWTOPBAR | TAB_DRAWINACTIVETAB | TAB_DRAGNDROP | TAB_REDUCE | TAB_CLOSEBUTTON | TAB_PINBUTTON);
+	int _tabStatus = (TAB_DRAWTOPBAR | TAB_DRAWINACTIVETAB | TAB_DRAGNDROP | TAB_REDUCE | TAB_CLOSEBUTTON | TAB_PINBUTTON | TAB_INACTIVETABSHOWBUTTON);
 	bool _forceTabbarVisible = false;
 	UINT _tabCompactLabelLen = 0; // 0 ... no compacting
 
@@ -836,6 +836,7 @@ struct NppGUI final
 	wchar_t _defaultDir[MAX_PATH]{};
 	wchar_t _defaultDirExp[MAX_PATH]{};	//expanded environment variables
 	wchar_t _lastUsedDir[MAX_PATH]{};
+	wchar_t _defaultSaveFolder[MAX_PATH]{};	// default/last folder for saving new/untitled files
 	
 	std::wstring _themeName;
 	MultiInstSetting _multiInstSetting = monoInst;

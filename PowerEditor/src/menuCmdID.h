@@ -402,6 +402,10 @@
     #define    IDM_VIEW_NPC                       (IDM_VIEW + 130)
     #define    IDM_VIEW_NPC_CCUNIEOL              (IDM_VIEW + 131)
 
+    #define    IDM_FILE_BOOKMARK_TAB              (IDM_VIEW + 140)
+    #define    IDM_FILE_BOOKMARK_ALL_TABS         (IDM_VIEW + 141)
+    #define    IDM_FILE_TOGGLE_BOOKMARKBAR        (IDM_VIEW + 142)
+
     #define    IDM_VIEW_GOTO_ANOTHER_VIEW        10001
     #define    IDM_VIEW_CLONE_TO_ANOTHER_VIEW    10002
     #define    IDM_VIEW_GOTO_NEW_INSTANCE        10003

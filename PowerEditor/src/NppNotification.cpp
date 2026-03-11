@@ -1,4 +1,4 @@
-// This file is part of Notepad++ project
+﻿// This file is part of Notepad++ project
 // Copyright (C)2021 Don HO <don.h@free.fr>
 
 // This program is free software: you can redistribute it and/or modify
@@ -203,15 +203,6 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 				if (nppGui._maintainIndent != autoIndent_none)
 					maintainIndentation(static_cast<wchar_t>(notification->ch));
 
-				Buffer* currentBuf = _pEditView->getCurrentBuffer();
-				if (currentBuf->allowAutoCompletion())
-				{
-					AutoCompletion* autoC = isFromPrimary ? &_autoCompleteMain : &_autoCompleteSub;
-					bool isColumnMode = _pEditView->execute(SCI_GETSELECTIONS) > 1; // Multi-Selection || Column mode)
-					if (nppGui._matchedPairConf.hasAnyPairsPair() && !isColumnMode)
-						autoC->insertMatchedChars(notification->ch, nppGui._matchedPairConf);
-					autoC->update(notification->ch);
-				}
 			}
 			break;
 		}
@@ -457,9 +448,6 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 
 			if (_pFuncList && (!_pFuncList->isClosed()) && _pFuncList->isVisible())
 				_pFuncList->markEntry();
-			AutoCompletion* autoC = isFromPrimary ? &_autoCompleteMain : &_autoCompleteSub;
-			autoC->update(0);
-
 			break;
 		}
 
@@ -565,8 +553,6 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 		{
 			if (!notifyView) return FALSE;
 
-			AutoCompletion* autoC = isFromPrimary ? &_autoCompleteMain : &_autoCompleteSub;
-			autoC->callTipClick(notification->position);
 			break;
 		}
 
@@ -1095,6 +1081,9 @@ BOOL Notepad_plus::notify(SCNotification *notification)
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_TAB_COLOUR_4, L"Apply Color 4", L"Apply Color to Tab"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_TAB_COLOUR_5, L"Apply Color 5", L"Apply Color to Tab"));
 					itemUnitArray.push_back(MenuItemUnit(IDM_VIEW_TAB_COLOUR_NONE, L"Remove Color", L"Apply Color to Tab"));
+					itemUnitArray.push_back(MenuItemUnit(0, NULL));
+					itemUnitArray.push_back(MenuItemUnit(IDM_FILE_BOOKMARK_TAB, L"Bookmark this Tab"));
+					itemUnitArray.push_back(MenuItemUnit(IDM_FILE_BOOKMARK_ALL_TABS, L"Bookmark All Tabs"));
 
 					// IMPORTANT: If any submenu entry is added/moved/removed, you have to change the value of tabCmSubMenuEntryPos[] in localization.cpp file
 				}

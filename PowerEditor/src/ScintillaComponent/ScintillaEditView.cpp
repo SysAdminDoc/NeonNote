@@ -1,4 +1,4 @@
-// This file is part of Notepad++ project
+﻿// This file is part of Notepad++ project
 // Copyright (C)2021 Don HO <don.h@free.fr>
 
 // This program is free software: you can redistribute it and/or modify
@@ -360,7 +360,7 @@ void ScintillaEditView::init(HINSTANCE hInst, HWND hPere)
 	_hSelf = ::CreateWindowEx(
 					0,\
 					L"Scintilla",\
-					L"Notepad++",\
+					L"NeonNote",\
 					WS_CHILD | WS_VSCROLL | WS_HSCROLL | WS_CLIPCHILDREN | WS_EX_RTLREADING,\
 					0, 0, 100, 100,\
 					_hParent,\
@@ -589,6 +589,23 @@ LRESULT CALLBACK ScintillaEditView::ScintillaProc(
 				{
 					::DefSubclassProc(hWnd, WM_HSCROLL, (GET_WHEEL_DELTA_WPARAM(wParam) < 0) ? SB_LINERIGHT : SB_LINELEFT, 0);
 				}
+				return 0;
+			}
+
+			// Smooth scroll: intercept normal vertical wheel (no Ctrl zoom, no RButton, not auto-scrolling)
+			if (uMsg == WM_MOUSEWHEEL && !pScint->_autoScrolling &&
+			    !(GET_KEYSTATE_WPARAM(wParam) & MK_CONTROL) &&
+			    !(GET_KEYSTATE_WPARAM(wParam) & MK_RBUTTON))
+			{
+				UINT scrollLines = 3;
+				::SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &scrollLines, 0);
+				if (scrollLines == WHEEL_PAGESCROLL) scrollLines = 10;
+				const int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+				// Negative delta = scroll down (positive lines), positive delta = scroll up (negative lines)
+				const double impulse = -static_cast<double>(delta) / WHEEL_DELTA * static_cast<double>(scrollLines);
+				pScint->_smoothScrollVelocity += impulse * 0.5; // blend impulse into velocity
+				if (pScint->_smoothScrollTimerID == 0)
+					pScint->_smoothScrollTimerID = ::SetTimer(hWnd, ScintillaEditView::SMOOTH_SCROLL_TIMER_ID, 16, nullptr);
 				return 0;
 			}
 			break;
@@ -834,8 +851,138 @@ LRESULT CALLBACK ScintillaEditView::ScintillaProc(
 			break;
 		}
 
+		case WM_MBUTTONDOWN:
+		{
+			if (pScint->_autoScrolling)
+			{
+				// Second middle click cancels auto-scroll
+				pScint->_autoScrolling = false;
+				::KillTimer(hWnd, ScintillaEditView::AUTO_SCROLL_TIMER_ID);
+				pScint->_autoScrollTimerID = 0;
+				pScint->_autoScrollAccumV = 0.0;
+				pScint->_autoScrollAccumH = 0.0;
+				::ReleaseCapture();
+				::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+				return 0;
+			}
+			// Start auto-scroll mode
+			pScint->_autoScrolling = true;
+			pScint->_autoScrollOrigin = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+			::ClientToScreen(hWnd, &pScint->_autoScrollOrigin);
+			pScint->_autoScrollAccumV = 0.0;
+			pScint->_autoScrollAccumH = 0.0;
+			pScint->_autoScrollTimerID = ::SetTimer(hWnd, ScintillaEditView::AUTO_SCROLL_TIMER_ID, 50, nullptr);
+			::SetCapture(hWnd);
+			::SetCursor(::LoadCursor(nullptr, IDC_SIZEALL));
+			return 0;
+		}
+
+		case WM_LBUTTONDOWN:
+		{
+			if (pScint->_autoScrolling)
+			{
+				pScint->_autoScrolling = false;
+				::KillTimer(hWnd, ScintillaEditView::AUTO_SCROLL_TIMER_ID);
+				pScint->_autoScrollTimerID = 0;
+				pScint->_autoScrollAccumV = 0.0;
+				pScint->_autoScrollAccumH = 0.0;
+				::ReleaseCapture();
+				::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+				return 0;
+			}
+			break;
+		}
+
+		case WM_SETCURSOR:
+		{
+			if (pScint->_autoScrolling)
+			{
+				::SetCursor(::LoadCursor(nullptr, IDC_SIZEALL));
+				return TRUE;
+			}
+			break;
+		}
+
+		case WM_TIMER:
+		{
+			if (wParam == ScintillaEditView::AUTO_SCROLL_TIMER_ID && pScint->_autoScrolling)
+			{
+				POINT curPos{};
+				::GetCursorPos(&curPos);
+				const int deltaY = curPos.y - pScint->_autoScrollOrigin.y;
+				const int deltaX = curPos.x - pScint->_autoScrollOrigin.x;
+
+				constexpr int deadZone = 12;
+				constexpr double scrollFactor = 0.05;
+
+				if (std::abs(deltaY) > deadZone)
+				{
+					pScint->_autoScrollAccumV += (std::abs(deltaY) - deadZone) * scrollFactor * (deltaY > 0 ? 1.0 : -1.0);
+					const int lines = static_cast<int>(pScint->_autoScrollAccumV);
+					if (lines != 0)
+					{
+						pScint->execute(SCI_LINESCROLL, 0, lines);
+						pScint->_autoScrollAccumV -= lines;
+					}
+				}
+				else
+				{
+					pScint->_autoScrollAccumV = 0.0;
+				}
+
+				if (std::abs(deltaX) > deadZone)
+				{
+					pScint->_autoScrollAccumH += (std::abs(deltaX) - deadZone) * scrollFactor * (deltaX > 0 ? 1.0 : -1.0);
+					const int cols = static_cast<int>(pScint->_autoScrollAccumH);
+					if (cols != 0)
+					{
+						pScint->execute(SCI_LINESCROLL, cols, 0);
+						pScint->_autoScrollAccumH -= cols;
+					}
+				}
+				else
+				{
+					pScint->_autoScrollAccumH = 0.0;
+				}
+				return 0;
+			}
+
+			if (wParam == ScintillaEditView::SMOOTH_SCROLL_TIMER_ID)
+			{
+				// Decay velocity with friction each 16ms tick
+				pScint->_smoothScrollVelocity *= 0.82;
+				pScint->_smoothScrollAccum += pScint->_smoothScrollVelocity;
+				const int lines = static_cast<int>(pScint->_smoothScrollAccum);
+				if (lines != 0)
+				{
+					pScint->execute(SCI_LINESCROLL, 0, lines);
+					pScint->_smoothScrollAccum -= lines;
+				}
+				if (std::abs(pScint->_smoothScrollVelocity) < 0.05)
+				{
+					pScint->_smoothScrollVelocity = 0.0;
+					pScint->_smoothScrollAccum = 0.0;
+					::KillTimer(hWnd, ScintillaEditView::SMOOTH_SCROLL_TIMER_ID);
+					pScint->_smoothScrollTimerID = 0;
+				}
+				return 0;
+			}
+			break;
+		}
+
 		case WM_RBUTTONDOWN:
 		{
+			if (pScint->_autoScrolling)
+			{
+				pScint->_autoScrolling = false;
+				::KillTimer(hWnd, ScintillaEditView::AUTO_SCROLL_TIMER_ID);
+				pScint->_autoScrollTimerID = 0;
+				pScint->_autoScrollAccumV = 0.0;
+				pScint->_autoScrollAccumH = 0.0;
+				::ReleaseCapture();
+				::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+				return 0;
+			}
 			const bool rightClickKeepsSelection = NppParameters::getInstance().getSVP()._rightClickKeepsSelection;
 			if (rightClickKeepsSelection)
 			{

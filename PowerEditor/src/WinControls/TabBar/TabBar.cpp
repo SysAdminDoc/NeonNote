@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#include <algorithm>
 #include <stdexcept>
 #include "Buffer.h"
 #include "TabBar.h"
@@ -29,10 +30,10 @@
 #define	IDC_DRAG_OUT_TAB 1407
 
 COLORREF TabBarPlus::_activeTextColour = ::GetSysColor(COLOR_BTNTEXT);
-COLORREF TabBarPlus::_activeTopBarFocusedColour = RGB(250, 170, 60);
-COLORREF TabBarPlus::_activeTopBarUnfocusedColour = RGB(250, 210, 150);
+COLORREF TabBarPlus::_activeTopBarFocusedColour = RGB(137, 180, 250);   // Catppuccin Blue
+COLORREF TabBarPlus::_activeTopBarUnfocusedColour = RGB(69, 71, 90);    // Catppuccin Surface1
 COLORREF TabBarPlus::_inactiveTextColour = grey;
-COLORREF TabBarPlus::_inactiveBgColour = RGB(192, 192, 192);
+COLORREF TabBarPlus::_inactiveBgColour = RGB(49, 50, 68);               // Catppuccin Surface0
 
 HWND TabBarPlus::_tabbrPlusInstanceHwndArray[nbCtrlMax] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 int TabBarPlus::_nbCtrl = 0;
@@ -436,7 +437,7 @@ void TabBarPlus::triggerOwnerDrawTabbar(DPIManagerV2* pDPIManager)
 					paddingSize = 10;
 				}
 				const int paddingSizeDynamicW = pDPIManager->scale(paddingSize);
-				::SendMessage(_tabbrPlusInstanceHwndArray[i], TCM_SETPADDING, 0, MAKELPARAM(paddingSizeDynamicW, 0));
+				::SendMessage(_tabbrPlusInstanceHwndArray[i], TCM_SETPADDING, 0, MAKELPARAM(paddingSizeDynamicW, pDPIManager->scale(5)));
 			}
 		}
 	}
@@ -1240,7 +1241,15 @@ LRESULT TabBarPlus::runProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPara
 
 			RECT rc{};
 			::GetClientRect(hwnd, &rc);
-			::FillRect(reinterpret_cast<HDC>(wParam), &rc, NppDarkMode::getDlgBackgroundBrush());
+
+			// Chrome-style: use darker Mantle color for tab strip background
+			NppGUI& eraseBgNppGUI = NppParameters::getInstance().getNppGUI();
+			bool eraseBgIsVertical = eraseBgNppGUI._tabStatus & TAB_VERTICAL;
+			bool eraseBgIsMultiLine = eraseBgNppGUI._tabStatus & TAB_MULTILINE;
+			HBRUSH eraseBgBrush = (!eraseBgIsVertical && !eraseBgIsMultiLine)
+				? NppDarkMode::getDlgBackgroundBrush()
+				: NppDarkMode::getBackgroundBrush();
+			::FillRect(reinterpret_cast<HDC>(wParam), &rc, eraseBgBrush);
 			return TRUE;
 		}
 
@@ -1300,35 +1309,38 @@ LRESULT TabBarPlus::runProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPara
 				{
 					if (!hasMultipleLines)
 					{
-						if (isVertical)
+						if (!NppDarkMode::isEnabled())
 						{
-							POINT edges[] = {
-								{dis.rcItem.left, dis.rcItem.bottom - 1},
-								{dis.rcItem.right, dis.rcItem.bottom - 1}
-							};
-
-							if (i != nSelTab && (i != nSelTab - 1))
+							if (isVertical)
 							{
-								edges[0].x += paddingDynamicTwoX;
+								POINT edges[] = {
+									{dis.rcItem.left, dis.rcItem.bottom - 1},
+									{dis.rcItem.right, dis.rcItem.bottom - 1}
+								};
+
+								if (i != nSelTab && (i != nSelTab - 1))
+								{
+									edges[0].x += paddingDynamicTwoX;
+								}
+
+								::Polyline(hdc, edges, _countof(edges));
+								dis.rcItem.bottom -= 1;
 							}
-
-							::Polyline(hdc, edges, _countof(edges));
-							dis.rcItem.bottom -= 1;
-						}
-						else
-						{
-							POINT edges[] = {
-								{dis.rcItem.right - 1, dis.rcItem.top},
-								{dis.rcItem.right - 1, dis.rcItem.bottom}
-							};
-
-							if (i != nSelTab && (i != nSelTab - 1))
+							else
 							{
-								edges[0].y += paddingDynamicTwoY;
-							}
+								POINT edges[] = {
+									{dis.rcItem.right - 1, dis.rcItem.top},
+									{dis.rcItem.right - 1, dis.rcItem.bottom}
+								};
 
-							::Polyline(hdc, edges, _countof(edges));
-							dis.rcItem.right -= 1;
+								if (i != nSelTab && (i != nSelTab - 1))
+								{
+									edges[0].y += paddingDynamicTwoY;
+								}
+
+								::Polyline(hdc, edges, _countof(edges));
+								dis.rcItem.right -= 1;
+							}
 						}
 					}
 
@@ -1344,7 +1356,7 @@ LRESULT TabBarPlus::runProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPara
 				}
 			}
 
-			if (!hasMultipleLines)
+			if (!hasMultipleLines && !NppDarkMode::isEnabled())
 			{
 				RECT rcFirstTab{};
 				TabCtrl_GetItemRect(hwnd, 0, &rcFirstTab);
@@ -1387,6 +1399,20 @@ LRESULT TabBarPlus::runProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lPara
 			}
 
 			SelectObject(hdc, holdPen);
+
+			// In dark mode: cover the tab control's internal border below the tab row
+			if (NppDarkMode::isEnabled() && !hasMultipleLines && !isVertical && nTabs > 0)
+			{
+				RECT rcClient{};
+				::GetClientRect(hwnd, &rcClient);
+				RECT rcFirstTab{};
+				TabCtrl_GetItemRect(hwnd, 0, &rcFirstTab);
+				if (rcFirstTab.bottom < rcClient.bottom)
+				{
+					RECT rcBorder = { rcClient.left, rcFirstTab.bottom, rcClient.right, rcClient.bottom };
+					::FillRect(hdc, &rcBorder, NppDarkMode::getBackgroundBrush());
+				}
+			}
 
 			if (Message == WM_PAINT)
 			{
@@ -1441,7 +1467,13 @@ void TabBarPlus::drawItem(DRAWITEMSTRUCT* pDrawItemStruct, bool isDarkMode)
 	COLORREF colorActiveText = _activeTextColour;
 	COLORREF colorInactiveText = _inactiveTextColour;
 
-	if (!NppDarkMode::useTabTheme() && isDarkMode)
+	if (isDarkMode)
+	{
+		colorInactiveBg = NppDarkMode::getBackgroundColor();
+		colorActiveText = NppDarkMode::getTextColor();
+		colorInactiveText = NppDarkMode::getDarkerTextColor();
+	}
+	else if (!NppDarkMode::useTabTheme())
 	{
 		colorInactiveBg = NppDarkMode::getBackgroundColor();
 		colorActiveText = NppDarkMode::getTextColor();
@@ -1459,7 +1491,7 @@ void TabBarPlus::drawItem(DRAWITEMSTRUCT* pDrawItemStruct, bool isDarkMode)
 
 	NppGUI& nppGUI = NppParameters::getInstance().getNppGUI();
 	bool isVertical = nppGUI._tabStatus & TAB_VERTICAL;
-	bool drawTopBar = nppGUI._tabStatus & TAB_DRAWTOPBAR;
+	bool drawTopBar = isDarkMode ? true : (bool)(nppGUI._tabStatus & TAB_DRAWTOPBAR);
 	bool drawTabCloseButton = nppGUI._tabStatus & TAB_CLOSEBUTTON;
 	bool drawTabPinButton = nppGUI._tabStatus & TAB_PINBUTTON;
 	bool drawInactiveTab = nppGUI._tabStatus & TAB_DRAWINACTIVETAB;
@@ -1522,67 +1554,291 @@ void TabBarPlus::drawItem(DRAWITEMSTRUCT* pDrawItemStruct, bool isDarkMode)
 	// draw highlights on tabs (top bar for active tab / darkened background for inactive tab)
 	RECT barRect = rect;
 	NppParameters& nppParam = NppParameters::getInstance();
-	if (isSelected)
+	if (isDarkMode && !isVertical && !hasMultipleLines)
 	{
-		hBrush = ::CreateSolidBrush(colorActiveBg);
+		// Chrome-style tab rendering
+		const int cr = _dpiManager.scale(8);
+		const int hGap = _dpiManager.scale(1);
+		const int selectedTab = static_cast<int>(::SendMessage(_hSelf, TCM_GETCURSEL, 0, 0));
+
+		// Darker tab strip background (Mantle) for contrast with tab shapes
+		hBrush = ::CreateSolidBrush(NppDarkMode::getDlgBackgroundColor());
 		::FillRect(hDC, &pDrawItemStruct->rcItem, hBrush);
 		::DeleteObject(static_cast<HGDIOBJ>(hBrush));
 
-		if (drawTopBar)
+		if (isSelected)
 		{
-			int topBarHeight = _dpiManager.scale(4);
-			if (isVertical)
+			// Active tab: rounded top corners, flat bottom, brightest color
+			RECT tabShape = pDrawItemStruct->rcItem;
+			tabShape.left += hGap;
+			tabShape.right -= hGap;
+			tabShape.top += _dpiManager.scale(1);
+
+			HRGN hRgn = ::CreateRoundRectRgn(
+				tabShape.left, tabShape.top,
+				tabShape.right + 1, tabShape.bottom + cr + 1,
+				cr * 2, cr * 2);
+
+			COLORREF activeFill = colorActiveBg;
+			if (individualColourId != -1)
 			{
-				barRect.left -= (hasMultipleLines && isDarkMode) ? 0 : paddingDynamicTwoX;
-				barRect.right = barRect.left + topBarHeight;
+				const bool isFocused = ::SendMessage(_hParent, NPPM_INTERNAL_ISFOCUSEDTAB, 0, reinterpret_cast<LPARAM>(_hSelf));
+				activeFill = nppParam.getIndividualTabColor(individualColourId, isDarkMode, isFocused);
+			}
+
+			hBrush = ::CreateSolidBrush(activeFill);
+			::FillRgn(hDC, hRgn, hBrush);
+			::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+
+			// Active tab top glow: subtle gradient highlight at the top
+			int glowH = _dpiManager.scale(6);
+			for (int gy = 0; gy < glowH; ++gy)
+			{
+				float alpha = 1.0f - (static_cast<float>(gy) / static_cast<float>(glowH));
+				alpha *= 0.12f; // subtle glow intensity
+
+				BYTE ar = GetRValue(activeFill), ag = GetGValue(activeFill), ab = GetBValue(activeFill);
+				BYTE gr = static_cast<BYTE>(std::min(255, ar + static_cast<int>(alpha * (255 - ar) * 1.5f)));
+				BYTE gg = static_cast<BYTE>(std::min(255, ag + static_cast<int>(alpha * (255 - ag) * 1.5f)));
+				BYTE gb = static_cast<BYTE>(std::min(255, ab + static_cast<int>(alpha * (255 - ab) * 1.5f)));
+
+				HPEN glowPen = ::CreatePen(PS_SOLID, 1, RGB(gr, gg, gb));
+				auto oldGP = ::SelectObject(hDC, glowPen);
+
+				// Clip to the rounded region
+				::SelectClipRgn(hDC, hRgn);
+				::MoveToEx(hDC, tabShape.left, tabShape.top + gy, nullptr);
+				::LineTo(hDC, tabShape.right, tabShape.top + gy);
+				::SelectClipRgn(hDC, nullptr);
+
+				::SelectObject(hDC, oldGP);
+				::DeleteObject(glowPen);
+			}
+			::DeleteObject(hRgn);
+		}
+		else // inactive tab
+		{
+			const bool isHovered = (_currentHoverTabItem == nTab && !_isDragging);
+
+			// Inactive tab base color: visible shape on darker strip
+			COLORREF brushColour = NppDarkMode::getBackgroundColor();
+			if (individualColourId != -1)
+				brushColour = nppParam.getIndividualTabColor(individualColourId, isDarkMode, false);
+
+			if (isHovered)
+			{
+				// Hover: brighten toward active tab color
+				HLSColour hls(brushColour);
+				brushColour = hls.toRGB4DarkModeWithTuning(10, 0);
+			}
+
+			// Always-visible rounded tab shape (shorter than active)
+			RECT tabShape = pDrawItemStruct->rcItem;
+			tabShape.left += hGap;
+			tabShape.right -= hGap;
+			tabShape.top += _dpiManager.scale(4);
+
+			HRGN hRgn = ::CreateRoundRectRgn(
+				tabShape.left, tabShape.top,
+				tabShape.right + 1, tabShape.bottom + cr + 1,
+				cr * 2, cr * 2);
+			hBrush = ::CreateSolidBrush(brushColour);
+			::FillRgn(hDC, hRgn, hBrush);
+			::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+			::DeleteObject(hRgn);
+
+			// Chrome-style separator line on left edge
+			const bool prevIsSelected = (nTab > 0 && (nTab - 1) == selectedTab);
+			const bool prevIsHovered = (nTab > 0 && (nTab - 1) == _currentHoverTabItem && !_isDragging);
+
+			if (nTab > 0 && !isHovered && !prevIsSelected && !prevIsHovered)
+			{
+				const int sepX = pDrawItemStruct->rcItem.left;
+				const int sepTop = pDrawItemStruct->rcItem.top + _dpiManager.scale(8);
+				const int sepBot = pDrawItemStruct->rcItem.bottom - _dpiManager.scale(6);
+
+				HPEN hSepPen = ::CreatePen(PS_SOLID, 1, NppDarkMode::getEdgeColor());
+				auto hOldPen = ::SelectObject(hDC, hSepPen);
+				::MoveToEx(hDC, sepX, sepTop, nullptr);
+				::LineTo(hDC, sepX, sepBot);
+				::SelectObject(hDC, hOldPen);
+				::DeleteObject(hSepPen);
+			}
+		}
+	}
+	else
+	{
+		// Original tab rendering (light mode, vertical, multiline)
+		if (isSelected)
+		{
+			hBrush = ::CreateSolidBrush(colorActiveBg);
+			::FillRect(hDC, &pDrawItemStruct->rcItem, hBrush);
+			::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+
+			if (drawTopBar)
+			{
+				const bool isFocused = ::SendMessage(_hParent, NPPM_INTERNAL_ISFOCUSEDTAB, 0, reinterpret_cast<LPARAM>(_hSelf));
+				COLORREF topBarColour = isFocused ? _activeTopBarFocusedColour : _activeTopBarUnfocusedColour;
+
+				if (individualColourId != -1)
+				{
+					topBarColour = nppParam.getIndividualTabColor(individualColourId, isDarkMode, isFocused);
+				}
+
+				int topBarHeight = _dpiManager.scale(3);
+				if (isVertical)
+				{
+					barRect.left -= (hasMultipleLines && isDarkMode) ? 0 : paddingDynamicTwoX;
+					barRect.right = barRect.left + topBarHeight;
+				}
+				else
+				{
+					barRect.top -= (hasMultipleLines && isDarkMode) ? 0 : paddingDynamicTwoY;
+					barRect.bottom = barRect.top + topBarHeight;
+				}
+
+				hBrush = ::CreateSolidBrush(topBarColour);
+				::FillRect(hDC, &barRect, hBrush);
+				::DeleteObject(static_cast<HGDIOBJ>(hBrush));
+			}
+		}
+		else // inactive tabs
+		{
+			RECT inactiveRect = (isDarkMode || hasMultipleLines) ? pDrawItemStruct->rcItem : barRect;
+			COLORREF brushColour{};
+
+			if (isDarkMode && individualColourId == -1)
+			{
+				brushColour = NppDarkMode::getBackgroundColor();
+			}
+			else if (drawInactiveTab && individualColourId == -1)
+			{
+				brushColour = colorInactiveBg;
+			}
+			else if (individualColourId != -1)
+			{
+				brushColour = nppParam.getIndividualTabColor(individualColourId, isDarkMode, false);
 			}
 			else
 			{
-				barRect.top -= (hasMultipleLines && isDarkMode) ? 0 : paddingDynamicTwoY;
-				barRect.bottom = barRect.top + topBarHeight;
+				brushColour = colorActiveBg;
 			}
 
-			const bool isFocused = ::SendMessage(_hParent, NPPM_INTERNAL_ISFOCUSEDTAB, 0, reinterpret_cast<LPARAM>(_hSelf));
-			COLORREF topBarColour = isFocused ? _activeTopBarFocusedColour : _activeTopBarUnfocusedColour; // #FAAA3C, #FAD296
-
-			if (individualColourId != -1)
+			if (_currentHoverTabItem == nTab && !_isDragging)
 			{
-				topBarColour = nppParam.getIndividualTabColor(individualColourId, isDarkMode, isFocused);
+				HLSColour hls(brushColour);
+				brushColour = hls.toRGB4DarkModeWithTuning(isDarkMode ? 12 : -8, 0);
 			}
 
-			hBrush = ::CreateSolidBrush(topBarColour);
-
-			::FillRect(hDC, &barRect, hBrush);
+			hBrush = ::CreateSolidBrush(brushColour);
+			::FillRect(hDC, &inactiveRect, hBrush);
 			::DeleteObject(static_cast<HGDIOBJ>(hBrush));
 		}
 	}
-	else // inactive tabs
-	{
-		RECT inactiveRect = hasMultipleLines ? pDrawItemStruct->rcItem : barRect;
-		COLORREF brushColour{};
 
-		if (drawInactiveTab && individualColourId == -1)
+	// Language-colored accent strip at top of tab
+	if (isDarkMode && !isVertical && !hasMultipleLines)
+	{
+		Buffer* accentBuf = reinterpret_cast<Buffer*>(tci.lParam);
+		if (accentBuf)
 		{
-			brushColour = colorInactiveBg;
+			const wchar_t* fileName = accentBuf->getFileName();
+			const wchar_t* ext = fileName ? wcsrchr(fileName, L'.') : nullptr;
+			COLORREF accentColor = 0;
+			bool hasAccent = true;
+
+			if (ext)
+			{
+				if (_wcsicmp(ext, L".py") == 0 || _wcsicmp(ext, L".pyw") == 0)
+					accentColor = RGB(55, 118, 171);   // Python blue
+				else if (_wcsicmp(ext, L".js") == 0 || _wcsicmp(ext, L".mjs") == 0 || _wcsicmp(ext, L".cjs") == 0)
+					accentColor = RGB(241, 224, 90);    // JavaScript yellow
+				else if (_wcsicmp(ext, L".ts") == 0 || _wcsicmp(ext, L".tsx") == 0)
+					accentColor = RGB(49, 120, 198);    // TypeScript blue
+				else if (_wcsicmp(ext, L".jsx") == 0)
+					accentColor = RGB(97, 218, 251);    // React cyan
+				else if (_wcsicmp(ext, L".cpp") == 0 || _wcsicmp(ext, L".cc") == 0 || _wcsicmp(ext, L".cxx") == 0)
+					accentColor = RGB(156, 89, 182);    // C++ purple
+				else if (_wcsicmp(ext, L".c") == 0)
+					accentColor = RGB(85, 85, 85);      // C grey
+				else if (_wcsicmp(ext, L".h") == 0 || _wcsicmp(ext, L".hpp") == 0 || _wcsicmp(ext, L".hxx") == 0)
+					accentColor = RGB(130, 61, 166);    // Header purple (lighter)
+				else if (_wcsicmp(ext, L".cs") == 0)
+					accentColor = RGB(104, 33, 122);    // C# deep purple
+				else if (_wcsicmp(ext, L".java") == 0)
+					accentColor = RGB(176, 114, 25);    // Java orange
+				else if (_wcsicmp(ext, L".go") == 0)
+					accentColor = RGB(0, 173, 216);     // Go cyan
+				else if (_wcsicmp(ext, L".rs") == 0)
+					accentColor = RGB(222, 165, 132);   // Rust orange/brown
+				else if (_wcsicmp(ext, L".rb") == 0)
+					accentColor = RGB(204, 52, 45);     // Ruby red
+				else if (_wcsicmp(ext, L".php") == 0)
+					accentColor = RGB(119, 123, 180);   // PHP purple
+				else if (_wcsicmp(ext, L".html") == 0 || _wcsicmp(ext, L".htm") == 0)
+					accentColor = RGB(228, 77, 38);     // HTML orange
+				else if (_wcsicmp(ext, L".css") == 0)
+					accentColor = RGB(86, 61, 124);     // CSS purple
+				else if (_wcsicmp(ext, L".scss") == 0 || _wcsicmp(ext, L".sass") == 0)
+					accentColor = RGB(205, 103, 153);   // SASS pink
+				else if (_wcsicmp(ext, L".json") == 0)
+					accentColor = RGB(253, 203, 110);   // JSON warm yellow
+				else if (_wcsicmp(ext, L".xml") == 0 || _wcsicmp(ext, L".xsl") == 0)
+					accentColor = RGB(233, 102, 59);    // XML orange
+				else if (_wcsicmp(ext, L".yaml") == 0 || _wcsicmp(ext, L".yml") == 0)
+					accentColor = RGB(203, 23, 30);     // YAML red
+				else if (_wcsicmp(ext, L".md") == 0 || _wcsicmp(ext, L".markdown") == 0)
+					accentColor = RGB(83, 141, 213);    // Markdown blue
+				else if (_wcsicmp(ext, L".sql") == 0)
+					accentColor = RGB(218, 139, 55);    // SQL orange
+				else if (_wcsicmp(ext, L".sh") == 0 || _wcsicmp(ext, L".bash") == 0)
+					accentColor = RGB(77, 170, 87);     // Shell green
+				else if (_wcsicmp(ext, L".ps1") == 0 || _wcsicmp(ext, L".psm1") == 0)
+					accentColor = RGB(1, 36, 86);       // PowerShell dark blue
+				else if (_wcsicmp(ext, L".lua") == 0)
+					accentColor = RGB(0, 0, 128);       // Lua dark blue
+				else if (_wcsicmp(ext, L".swift") == 0)
+					accentColor = RGB(240, 81, 56);     // Swift orange
+				else if (_wcsicmp(ext, L".kt") == 0 || _wcsicmp(ext, L".kts") == 0)
+					accentColor = RGB(169, 123, 255);   // Kotlin purple
+				else if (_wcsicmp(ext, L".dart") == 0)
+					accentColor = RGB(0, 180, 216);     // Dart cyan
+				else if (_wcsicmp(ext, L".r") == 0 || _wcsicmp(ext, L".R") == 0)
+					accentColor = RGB(25, 140, 231);    // R blue
+				else if (_wcsicmp(ext, L".txt") == 0 || _wcsicmp(ext, L".log") == 0 || _wcsicmp(ext, L".ini") == 0 || _wcsicmp(ext, L".cfg") == 0)
+					accentColor = RGB(150, 150, 150);   // Plain text grey
+				else
+					hasAccent = false;
+			}
+			else
+			{
+				hasAccent = false;
+			}
+
+			if (hasAccent && individualColourId == -1)
+			{
+				const RECT& tabRc = pDrawItemStruct->rcItem;
+				int stripH = _dpiManager.scale(2);
+				int inset = _dpiManager.scale(2);
+
+				RECT accentRc;
+				accentRc.left = tabRc.left + inset;
+				accentRc.right = tabRc.right - inset;
+				accentRc.top = tabRc.top + (isSelected ? _dpiManager.scale(1) : _dpiManager.scale(4));
+				accentRc.bottom = accentRc.top + stripH;
+
+				// Rounded accent strip using CreateRoundRectRgn
+				int accentCr = _dpiManager.scale(2);
+				HRGN hAccentRgn = ::CreateRoundRectRgn(
+					accentRc.left, accentRc.top,
+					accentRc.right + 1, accentRc.bottom + 1,
+					accentCr * 2, accentCr * 2);
+				HBRUSH hAccentBrush = ::CreateSolidBrush(accentColor);
+				::FillRgn(hDC, hAccentRgn, hAccentBrush);
+				::DeleteObject(hAccentBrush);
+				::DeleteObject(hAccentRgn);
+			}
 		}
-		else if (individualColourId != -1)
-		{
-			brushColour = nppParam.getIndividualTabColor(individualColourId, isDarkMode, false);
-		}
-		else
-		{
-			brushColour = colorActiveBg;
-		}
-		
-		if (_currentHoverTabItem == nTab && brushColour != colorActiveBg && !_isDragging) // hover on a "darker" inactive tab
-		{
-			HLSColour hls(brushColour);
-			brushColour = hls.toRGB4DarkModeWithTuning(15, 0); // make it lighter slightly
-		}
-		
-		hBrush = ::CreateSolidBrush(brushColour);
-		::FillRect(hDC, &inactiveRect, hBrush);
-		::DeleteObject(static_cast<HGDIOBJ>(hBrush));
 	}
 
 	if (isDarkMode && hasMultipleLines)

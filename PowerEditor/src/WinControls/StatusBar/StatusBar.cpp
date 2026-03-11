@@ -121,6 +121,13 @@ static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, L
 			RECT rc{};
 			::GetClientRect(hWnd, &rc);
 			::FillRect(reinterpret_cast<HDC>(wParam), &rc, NppDarkMode::getBackgroundBrush());
+
+			// 1px top accent line (Catppuccin Blue, matching tab accent)
+			RECT rcAccent = rc;
+			rcAccent.bottom = rcAccent.top + 1;
+			HBRUSH hAccentBrush = ::CreateSolidBrush(NppDarkMode::getLinkTextColor());
+			::FillRect(reinterpret_cast<HDC>(wParam), &rcAccent, hAccentBrush);
+			::DeleteObject(hAccentBrush);
 			return TRUE;
 		}
 
@@ -146,45 +153,61 @@ static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, L
 			const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
 			bool isSizeGrip = style & SBARS_SIZEGRIP;
 
-			auto holdPen = static_cast<HPEN>(::SelectObject(hdc, NppDarkMode::getEdgePen()));
-
 			auto holdFont = static_cast<HFONT>(::SelectObject(hdc, pStatusBarInfo->_hFont));
 
 			int nParts = static_cast<int>(SendMessage(hWnd, SB_GETPARTS, 0, 0));
+			bool isMainStatusBar = (nParts > 2);
+
+			// DPI-aware pill metrics
+			UINT dpi = DPIManagerV2::getDpiForWindow(hWnd);
+			int pillVPad = MulDiv(3, dpi, 96);
+			int pillHPad = MulDiv(6, dpi, 96);
+			int pillRadius = MulDiv(4, dpi, 96);
+			int pillGap = MulDiv(3, dpi, 96);
+
+			// Colors for pill segments (Catppuccin Mocha accents)
+			// Part 0: Doc Type (Mauve), 1: Doc Size (text only), 2: Cursor Pos (text only)
+			// Part 3: EOF Format (Green), 4: Encoding (Blue), 5: Typing Mode (Peach)
+			struct PillStyle { COLORREF bg; COLORREF text; bool hasPill; };
+
+			auto getPillStyle = [&](int partIndex) -> PillStyle
+			{
+				if (!isMainStatusBar)
+					return { 0, NppDarkMode::getTextColor(), false };
+
+				switch (partIndex)
+				{
+					case 0: // Doc Type - Catppuccin Mauve pill
+						return { RGB(50, 38, 60), RGB(203, 166, 247), true };
+					case 3: // EOF Format - Catppuccin Green pill
+						return { RGB(30, 50, 38), RGB(166, 227, 161), true };
+					case 4: // Encoding - Catppuccin Blue pill
+						return { RGB(30, 40, 55), RGB(137, 180, 250), true };
+					case 5: // Typing Mode - Catppuccin Peach pill
+						return { RGB(55, 40, 30), RGB(250, 179, 135), true };
+					default: // Doc Size, Cursor Pos - plain text
+						return { 0, NppDarkMode::getTextColor(), false };
+				}
+			};
+
 			std::wstring str;
 			for (int i = 0; i < nParts; ++i)
 			{
 				RECT rcPart{};
 				::SendMessage(hWnd, SB_GETRECT, i, reinterpret_cast<LPARAM>(&rcPart));
 				if (!::RectVisible(hdc, &rcPart))
-				{
 					continue;
-				}
-
-				if (nParts > 2) //to not apply on status bar in find dialog
-				{
-					POINT edges[] = {
-						{rcPart.right - 2, rcPart.top + 1},
-						{rcPart.right - 2, rcPart.bottom - 3}
-					};
-					Polyline(hdc, edges, _countof(edges));
-				}
-
-				RECT rcDivider = { rcPart.right - borders.vertical, rcPart.top, rcPart.right, rcPart.bottom };
 
 				DWORD cchText = 0;
 				cchText = LOWORD(SendMessage(hWnd, SB_GETTEXTLENGTH, i, 0));
-				str.resize(size_t{ cchText } + 1); // technically the std::wstring might not have an internal null character at the end of the buffer, so add one
+				str.resize(size_t{ cchText } + 1);
 				LRESULT lr = ::SendMessage(hWnd, SB_GETTEXT, i, reinterpret_cast<LPARAM>(str.data()));
-				str.resize(cchText); // remove the extra NULL character
+				str.resize(cchText);
 				bool ownerDraw = false;
 				if (cchText == 0 && (lr & ~(SBT_NOBORDERS | SBT_POPOUT | SBT_RTLREADING)) != 0)
-				{
-					// this is a pointer to the text
 					ownerDraw = true;
-				}
+
 				SetBkMode(hdc, TRANSPARENT);
-				SetTextColor(hdc, NppDarkMode::getTextColor());
 
 				rcPart.left += borders.between;
 				rcPart.right -= borders.vertical;
@@ -193,27 +216,52 @@ static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, L
 				{
 					UINT id = GetDlgCtrlID(hWnd);
 					DRAWITEMSTRUCT dis = {
-						0
-						, 0
-						, static_cast<UINT>(i)
-						, ODA_DRAWENTIRE
-						, id
-						, hWnd
-						, hdc
-						, rcPart
-						, static_cast<ULONG_PTR>(lr)
+						0, 0, static_cast<UINT>(i), ODA_DRAWENTIRE, id,
+						hWnd, hdc, rcPart, static_cast<ULONG_PTR>(lr)
 					};
-
 					SendMessage(GetParent(hWnd), WM_DRAWITEM, id, (LPARAM)&dis);
 				}
 				else
 				{
-					DrawText(hdc, str.c_str(), static_cast<int>(str.size()), &rcPart, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
-				}
+					PillStyle ps2 = getPillStyle(i);
 
-				if (!isSizeGrip && i < (nParts - 1))
-				{
-					FillRect(hdc, &rcDivider, NppDarkMode::getCtrlBackgroundBrush());
+					if (ps2.hasPill && !str.empty())
+					{
+						// Measure text for tight pill
+						SIZE textSize{};
+						::GetTextExtentPoint32(hdc, str.c_str(), static_cast<int>(str.size()), &textSize);
+
+						int pillW = textSize.cx + pillHPad * 2;
+						int pillH = textSize.cy + pillVPad;
+
+						RECT pillRc;
+						pillRc.left = rcPart.left + pillGap;
+						pillRc.top = rcPart.top + (rcPart.bottom - rcPart.top - pillH) / 2;
+						pillRc.right = pillRc.left + pillW;
+						pillRc.bottom = pillRc.top + pillH;
+
+						// Draw rounded pill background
+						HRGN hPillRgn = ::CreateRoundRectRgn(
+							pillRc.left, pillRc.top,
+							pillRc.right + 1, pillRc.bottom + 1,
+							pillRadius * 2, pillRadius * 2);
+						HBRUSH hPillBrush = ::CreateSolidBrush(ps2.bg);
+						::FillRgn(hdc, hPillRgn, hPillBrush);
+						::DeleteObject(hPillBrush);
+						::DeleteObject(hPillRgn);
+
+						// Draw text inside pill
+						SetTextColor(hdc, ps2.text);
+						DrawText(hdc, str.c_str(), static_cast<int>(str.size()), &pillRc,
+							DT_SINGLELINE | DT_VCENTER | DT_CENTER);
+					}
+					else
+					{
+						// Plain text segments
+						SetTextColor(hdc, ps2.text);
+						DrawText(hdc, str.c_str(), static_cast<int>(str.size()), &rcPart,
+							DT_SINGLELINE | DT_VCENTER | DT_LEFT);
+					}
 				}
 			}
 
@@ -230,7 +278,6 @@ static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, L
 			}
 
 			::SelectObject(hdc, holdFont);
-			::SelectObject(hdc, holdPen);
 
 			if (uMsg == WM_PAINT)
 			{

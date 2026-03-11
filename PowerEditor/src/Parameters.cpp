@@ -1277,7 +1277,7 @@ std::wstring NppParameters::getSettingsFolder() const
 	if (settingsFolderPath.empty())
 		return _nppPath;
 
-	pathAppend(settingsFolderPath, L"Notepad++");
+	pathAppend(settingsFolderPath, L"NeonNote");
 	return settingsFolderPath;
 }
 
@@ -1330,7 +1330,7 @@ bool NppParameters::load()
 	{
 		_userPath = getSpecialFolderLocation(CSIDL_APPDATA);
 
-		pathAppend(_userPath, L"Notepad++");
+		pathAppend(_userPath, L"NeonNote");
 		if (!doesDirectoryExist(_userPath.c_str()))
 			::CreateDirectory(_userPath.c_str(), NULL);
 
@@ -6271,6 +6271,12 @@ void NppParameters::feedGUIParameters(const NppXml::Element& element)
 			{
 				std::wcsncpy(_nppGUI._lastUsedDir, lastPath.c_str(), MAX_PATH);
 			}
+
+			const std::wstring defSavePath = string2wstring(NppXml::attribute(childNode, "defaultSaveFolderPath", ""));
+			if (!defSavePath.empty())
+			{
+				std::wcsncpy(_nppGUI._defaultSaveFolder, defSavePath.c_str(), MAX_PATH);
+			}
 		}
 		// <GUIConfig name="titleBar" short="no" />
 		else if (std::strcmp(nm, "titleBar") == 0)
@@ -7430,6 +7436,7 @@ void NppParameters::createXmlTreeFromGUIParams()
 		NppXml::setAttribute(GUIConfigElement, "value", _nppGUI._openSaveDir);
 		NppXml::setAttribute(GUIConfigElement, "defaultDirPath", wstring2string(_nppGUI._defaultDir));
 		NppXml::setAttribute(GUIConfigElement, "lastUsedDirPath", wstring2string(_nppGUI._lastUsedDir));
+		NppXml::setAttribute(GUIConfigElement, "defaultSaveFolderPath", wstring2string(_nppGUI._defaultSaveFolder));
 	}
 
 	// <GUIConfig name="titleBar" short="no" />

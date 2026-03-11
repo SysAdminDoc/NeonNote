@@ -43,6 +43,7 @@
 #include "localization.h"
 #include "documentSnapshot.h"
 #include "md5Dlgs.h"
+#include "BookmarkBar.h"
 #include <vector>
 #include <iso646.h>
 #include <chrono>
@@ -189,6 +190,7 @@ public:
 	bool fileSave(BufferID id = BUFFER_INVALID);
 	bool fileSaveAllConfirm();
 	bool fileSaveAll();
+	bool fileSaveAllSilent();
 	bool fileSaveSpecific(const std::wstring& fileNameToSave);
 	bool fileSaveAs(BufferID id = BUFFER_INVALID, bool isSaveCopy = false);
 	bool fileDelete(BufferID id = BUFFER_INVALID);
@@ -313,6 +315,7 @@ private:
     StatusBar _statusBar;
 	ReBar _rebarTop;
 	ReBar _rebarBottom;
+	BookmarkBar _bookmarkBar;
 
 	// Dialog
 	FindReplaceDlg _findReplaceDlg;
@@ -343,6 +346,11 @@ private:
 	std::vector<HWND> _hModelessDlgs;
 
 	LastRecentFileList _lastRecentFileList;
+
+	// Bulk save state for untitled files (used during fileSaveAll)
+	int _untitledSaveCounter = 0;
+	bool _inSaveAll = false;
+	std::wstring _untitledBulkSaveFolder;
 
 	WindowsMenu _windowsMenu;
 	HMENU _mainMenuHandle = NULL;

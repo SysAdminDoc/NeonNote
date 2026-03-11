@@ -1924,6 +1924,9 @@ bool Notepad_plus::fileSaveAll()
 	}
 	else if (fileSaveAllConfirm())
 	{
+		_inSaveAll = true;
+		_untitledBulkSaveFolder.clear();
+
 		if (viewVisible(MAIN_VIEW))
 		{
 			for (size_t i = 0; i < _mainDocTab.nbItem(); ++i)
@@ -1941,8 +1944,67 @@ bool Notepad_plus::fileSaveAll()
 				fileSave(idToSave);
 			}
 		}
+
+		_inSaveAll = false;
+		_untitledBulkSaveFolder.clear();
 		checkDocState();
 	}
+	return true;
+}
+
+bool Notepad_plus::fileSaveAllSilent()
+{
+	// Determine (and create) the auto-save folder: %USERPROFILE%\Documents\Notepad++
+	wchar_t autoSaveDir[MAX_PATH] = {};
+	{
+		PWSTR docsPath = nullptr;
+		if (SUCCEEDED(::SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_CREATE, nullptr, &docsPath)))
+		{
+			swprintf_s(autoSaveDir, L"%ls\\Notepad++", docsPath);
+			::CoTaskMemFree(docsPath);
+		}
+		else
+		{
+			// Fallback: use %USERPROFILE%\Documents\Notepad++
+			::ExpandEnvironmentStrings(L"%USERPROFILE%\\Documents\\Notepad++", autoSaveDir, MAX_PATH);
+		}
+
+		if (!doesDirectoryExist(autoSaveDir))
+			::SHCreateDirectory(nullptr, autoSaveDir);
+	}
+
+	auto saveBufSilent = [&](BufferID id) {
+		Buffer* buf = MainFileManager.getBufferByID(id);
+		if (!buf || buf->getFileReadOnly() || !buf->isDirty())
+			return;
+
+		if (buf->isUntitled())
+		{
+			wchar_t autoPath[MAX_PATH] = {};
+			do {
+				swprintf_s(autoPath, L"%ls\\file_%04d.txt", autoSaveDir, ++_untitledSaveCounter);
+			} while (doesFileExist(autoPath));
+			if (doSave(id, autoPath, false))
+				_lastRecentFileList.remove(autoPath);
+		}
+		else
+		{
+			doSave(id, buf->getFullPathName(), false);
+		}
+	};
+
+	if (viewVisible(MAIN_VIEW))
+	{
+		for (size_t i = 0; i < _mainDocTab.nbItem(); ++i)
+			saveBufSilent(_mainDocTab.getBufferByIndex(i));
+	}
+	if (viewVisible(SUB_VIEW))
+	{
+		for (size_t i = 0; i < _subDocTab.nbItem(); ++i)
+			saveBufSilent(_subDocTab.getBufferByIndex(i));
+	}
+
+	checkDocState();
 	return true;
 }
 
@@ -1965,7 +2027,44 @@ bool Notepad_plus::fileSaveAs(BufferID bufferID, bool isSaveCopy)
 	const bool defaultAllTypes = NppParameters::getInstance().getNppGUI()._setSaveDlgExtFiltToAllTypes;
 	const int langTypeIndex = setFileOpenSaveDlgFilters(fDlg, false, langType);
 	
-	fDlg.setDefFileName(buf->getFileName());
+	NppParameters& nppParam = NppParameters::getInstance();
+
+	// For untitled buffers during a bulk save-all: auto-save without showing a dialog.
+	if (wasUntitled && _inSaveAll && !_untitledBulkSaveFolder.empty())
+	{
+		wchar_t autoPath[MAX_PATH] = {};
+		do {
+			swprintf_s(autoPath, L"%ls\\file_%04d.txt", _untitledBulkSaveFolder.c_str(), ++_untitledSaveCounter);
+		} while (doesFileExist(autoPath));
+		bool res = doSave(bufferID, autoPath, false);
+		if (res)
+		{
+			wcsncpy_s(nppParam.getNppGUI()._defaultSaveFolder, _untitledBulkSaveFolder.c_str(), _TRUNCATE);
+			_lastRecentFileList.remove(autoPath);
+		}
+		return res;
+	}
+
+	// For named buffers or single-file saves: use the default filename.
+	if (wasUntitled)
+	{
+		wchar_t* defSaveFolder = nppParam.getNppGUI()._defaultSaveFolder;
+		if (defSaveFolder[0] != L'\0')
+			fDlg.setFolder(defSaveFolder);
+
+		// Suggest a generic auto-name; user can keep or change it.
+		wchar_t suggestedName[32] = {};
+		swprintf_s(suggestedName, L"file_%04d", _untitledSaveCounter + 1);
+		fDlg.setDefFileName(suggestedName);
+
+		// In a save-all pass, offer to auto-save all remaining untitled files.
+		if (_inSaveAll)
+			fDlg.setCheckbox(L"&Save all remaining untitled files to this folder");
+	}
+	else
+	{
+		fDlg.setDefFileName(buf->getFileName());
+	}
 
 	fDlg.setExtIndex(langTypeIndex + 1); // +1 for "All types"
 
@@ -1986,7 +2085,6 @@ bool Notepad_plus::fileSaveAs(BufferID bufferID, bool isSaveCopy)
 	fDlg.enableFileTypeCheckbox(checkboxLabel, !defaultAllTypes);
 
 	// Disable file autodetection before opening save dialog to prevent use-after-delete bug.
-	NppParameters& nppParam = NppParameters::getInstance();
 	auto cdBefore = nppParam.getNppGUI()._fileAutoDetection;
 	(nppParam.getNppGUI())._fileAutoDetection = cdDisabled;
 
@@ -2018,6 +2116,18 @@ bool Notepad_plus::fileSaveAs(BufferID bufferID, bool isSaveCopy)
 			if (res && !isSaveCopy)
 			{
 				_lastRecentFileList.remove(fn.c_str());
+			}
+
+			// Remember the folder for the next untitled file save; activate bulk mode if checkbox was ticked.
+			if (res && wasUntitled && !isSaveCopy)
+			{
+				wchar_t savedDir[MAX_PATH] = {};
+				wcsncpy_s(savedDir, fn.c_str(), _TRUNCATE);
+				::PathRemoveFileSpecW(savedDir);
+				wcsncpy_s(nppParam.getNppGUI()._defaultSaveFolder, savedDir, _TRUNCATE);
+				++_untitledSaveCounter;
+				if (_inSaveAll && fDlg.getCheckboxState())
+					_untitledBulkSaveFolder = savedDir;
 			}
 
 			if (res && isSaveCopy && fDlg.getOpenTheCopyAfterSaveAsCopy())

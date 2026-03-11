@@ -475,6 +475,34 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 			break;
 		}
 
+		case BMN_BOOKMARKCLICKED:
+		{
+			int bmIndex = static_cast<int>(wParam);
+			if (bmIndex >= 0 && bmIndex < _bookmarkBar.getBookmarkCount() && !_bookmarkBar.isFolder(bmIndex))
+			{
+				const std::wstring& filePath = _bookmarkBar.getBookmarkPath(bmIndex);
+				BufferID bmBufId = doOpen(filePath);
+				if (bmBufId != BUFFER_INVALID)
+					switchToFile(bmBufId);
+			}
+			break;
+		}
+
+		case BMN_BOOKMARK_SAVE:
+		{
+			NppParameters& bmParam = NppParameters::getInstance();
+			std::wstring bmPath = bmParam.getUserPath();
+			bmPath += L"\\config.xml";
+			_bookmarkBar.saveToXml(bmPath.c_str());
+			break;
+		}
+
+		case BMN_BOOKMARK_ALL_TABS:
+		{
+			command(IDM_FILE_BOOKMARK_ALL_TABS);
+			break;
+		}
+
 		case NPPM_GETBUFFERLANGTYPE:
 		{
 			if (!wParam)
@@ -1987,12 +2015,9 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 								LRESULT lr = CDRF_DODEFAULT;
 								if (NppDarkMode::isEnabled())
 								{
-									if (NppDarkMode::isWindows11())
-									{
-										roundCornerValue = 5;
-									}
+									roundCornerValue = NppDarkMode::isWindows11() ? 8 : 6;
 
-									::FillRect(nmtbcd->nmcd.hdc, &nmtbcd->nmcd.rc, NppDarkMode::getDlgBackgroundBrush());
+									::FillRect(nmtbcd->nmcd.hdc, &nmtbcd->nmcd.rc, NppDarkMode::getBackgroundBrush());
 									lr |= CDRF_NOTIFYITEMDRAW;
 								}
 
@@ -2166,7 +2191,7 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 									return CDRF_DODEFAULT;
 								}
 
-								::FillRect(lpnmcd->hdc, &lpnmcd->rc, NppDarkMode::getDlgBackgroundBrush());
+								::FillRect(lpnmcd->hdc, &lpnmcd->rc, NppDarkMode::getBackgroundBrush());
 								REBARBANDINFO rbBand{};
 								rbBand.cbSize = sizeof(REBARBANDINFO);
 								rbBand.fMask = RBBIM_STYLE | RBBIM_CHEVRONLOCATION | RBBIM_CHEVRONSTATE;

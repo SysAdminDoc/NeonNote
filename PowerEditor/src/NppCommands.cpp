@@ -4208,6 +4208,88 @@ void Notepad_plus::command(int id)
 		}
 		break;
 
+		case IDM_FILE_BOOKMARK_TAB:
+		{
+			Buffer* pBuf = _pEditView->getCurrentBuffer();
+			if (pBuf && !pBuf->isUntitled())
+			{
+				const wchar_t* fullPath = pBuf->getFullPathName();
+				if (fullPath && fullPath[0] != L'\0' && !_bookmarkBar.hasBookmark(fullPath))
+				{
+					_bookmarkBar.addBookmark(fullPath);
+					NppParameters& bmParam = NppParameters::getInstance();
+					std::wstring bmPath = bmParam.getUserPath();
+					bmPath += L"\\config.xml";
+					_bookmarkBar.saveToXml(bmPath.c_str());
+				}
+			}
+		}
+		break;
+
+		case IDM_FILE_BOOKMARK_ALL_TABS:
+		{
+			std::vector<std::wstring> allPaths;
+
+			// Collect from main view
+			for (size_t i = 0; i < _mainDocTab.nbItem(); ++i)
+			{
+				BufferID bufId = _mainDocTab.getBufferByIndex(i);
+				Buffer* buf = MainFileManager.getBufferByID(bufId);
+				if (buf && !buf->isUntitled())
+				{
+					const wchar_t* fp = buf->getFullPathName();
+					if (fp && fp[0] != L'\0')
+						allPaths.push_back(fp);
+				}
+			}
+
+			// Collect from sub view (avoid duplicates)
+			for (size_t i = 0; i < _subDocTab.nbItem(); ++i)
+			{
+				BufferID bufId = _subDocTab.getBufferByIndex(i);
+				Buffer* buf = MainFileManager.getBufferByID(bufId);
+				if (buf && !buf->isUntitled())
+				{
+					const wchar_t* fp = buf->getFullPathName();
+					if (fp && fp[0] != L'\0')
+					{
+						bool dup = false;
+						for (const auto& existing : allPaths)
+						{
+							if (_wcsicmp(existing.c_str(), fp) == 0) { dup = true; break; }
+						}
+						if (!dup)
+							allPaths.push_back(fp);
+					}
+				}
+			}
+
+			if (!allPaths.empty())
+			{
+				// Generate folder name with timestamp
+				SYSTEMTIME st{};
+				::GetLocalTime(&st);
+				wchar_t folderName[64]{};
+				swprintf_s(folderName, L"All Tabs %04d-%02d-%02d %02d:%02d",
+					st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute);
+
+				_bookmarkBar.addFolder(folderName, allPaths);
+
+				NppParameters& bmParam = NppParameters::getInstance();
+				std::wstring bmPath = bmParam.getUserPath();
+				bmPath += L"\\config.xml";
+				_bookmarkBar.saveToXml(bmPath.c_str());
+			}
+		}
+		break;
+
+		case IDM_FILE_TOGGLE_BOOKMARKBAR:
+		{
+			_bookmarkBar.setVisible(!_bookmarkBar.isVisible());
+			::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
+		}
+		break;
+
 		default :
 			if (id > IDM_FILEMENU_LASTONE && id < (IDM_FILEMENU_LASTONE + _lastRecentFileList.getMaxNbLRF() + 1))
 			{

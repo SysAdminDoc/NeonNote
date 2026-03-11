@@ -3870,6 +3870,8 @@ intptr_t CALLBACK DefaultDirectorySubDlg::run_dlgProc(UINT message, WPARAM wPara
 
 			::SendDlgItemMessage(_hSelf, IDC_OPENSAVEDIR_CHECK_DROPFOLDEROPENFILES, BM_SETCHECK, nppGUI._isFolderDroppedOpenFiles ? BST_CHECKED : BST_UNCHECKED, 0);
 
+			::SendDlgItemMessage(_hSelf, IDC_DEFAULTSAVEDIR_EDIT, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(nppGUI._defaultSaveFolder));
+
 			return TRUE;
 		}
 
@@ -3911,6 +3913,13 @@ intptr_t CALLBACK DefaultDirectorySubDlg::run_dlgProc(UINT message, WPARAM wPara
 						}
 						return TRUE;
 					}
+				case IDC_DEFAULTSAVEDIR_EDIT:
+					{
+						wchar_t inputDir[MAX_PATH] = { '\0' };
+						::SendDlgItemMessage(_hSelf, IDC_DEFAULTSAVEDIR_EDIT, WM_GETTEXT, MAX_PATH, reinterpret_cast<LPARAM>(inputDir));
+						wcscpy_s(nppGUI._defaultSaveFolder, inputDir);
+						return TRUE;
+					}
 				}
 			}
 
@@ -3944,6 +3953,13 @@ intptr_t CALLBACK DefaultDirectorySubDlg::run_dlgProc(UINT message, WPARAM wPara
 
 				case IDC_OPENSAVEDIR_CHECK_DROPFOLDEROPENFILES:
 					nppGUI._isFolderDroppedOpenFiles = isCheckedOrNot(IDC_OPENSAVEDIR_CHECK_DROPFOLDEROPENFILES);
+					return TRUE;
+
+				case IDD_DEFAULTSAVEDIR_BROWSE_BUTTON:
+					{
+						wstring title = L"Select default save location for new files";
+						folderBrowser(_hSelf, title, IDC_DEFAULTSAVEDIR_EDIT, nppGUI._defaultSaveFolder);
+					}
 					return TRUE;
 
 				default:

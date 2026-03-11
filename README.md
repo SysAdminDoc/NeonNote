@@ -1,50 +1,79 @@
-What is Notepad++ ?
-===================
+# NeonNote v1.0.0
 
-[![GitHub release](https://img.shields.io/github/release/notepad-plus-plus/notepad-plus-plus.svg)](../../releases/latest)&nbsp;&nbsp;&nbsp;&nbsp;[![Build Status](https://img.shields.io/github/actions/workflow/status/notepad-plus-plus/notepad-plus-plus/CI_build.yml)](https://github.com/notepad-plus-plus/notepad-plus-plus/actions/workflows/CI_build.yml)
-&nbsp;&nbsp;&nbsp;&nbsp;[![Join the discussions at https://community.notepad-plus-plus.org/](https://notepad-plus-plus.org/assets/images/NppCommunityBadge.svg)](https://community.notepad-plus-plus.org/)
+A premium, visually enhanced fork of [Notepad++](https://github.com/notepad-plus-plus/notepad-plus-plus) with a Catppuccin Mocha dark theme, Chrome-style UI, and animated visual elements. Built for developers who want their text editor to look as good as their code.
 
-Notepad++ is a free (free as in both "free speech" and "free beer") source code
-editor and Notepad replacement that supports several programming languages and
-natural languages. Running in the MS Windows environment, its use is governed by
-[GPL License](LICENSE).
+![Windows](https://img.shields.io/badge/platform-Windows-blue)
+![License](https://img.shields.io/badge/license-GPL--3.0-green)
+![Version](https://img.shields.io/badge/version-1.0.0-purple)
 
-See the [Notepad++ official site](https://notepad-plus-plus.org/) for more information.
+## Features
 
+### Chrome-Style Rounded Tabs
 
-Notepad++ GPG Release Key
--------------------------
-_Since the release of version 7.6.5 Notepad++ is signed using GPG with the following key:_
+- Fully custom-drawn tabs with smooth rounded corners
+- Active tab underglow effect with subtle gradient highlighting
+- Language-colored accent strips at the top of each tab (30+ file type mappings)
+- Per-tab color coding by file extension: `.py` = Blue, `.js` = Yellow, `.cpp` = Purple, `.html` = Orange, and more
 
-- **Signer:** Notepad++
-- **E-mail:** don.h@free.fr
-- **Key ID:** 0x8D84F46E
-- **Key fingerprint:** 14BC E436 2749 B2B5 1F8C 7122 6C42 9F1D 8D84 F46E
-- **Key type:** RSA 4096/4096
-- **Created:** 2019-03-11
-- **Expires:** 2027-03-13
+### Bookmark Bar
 
-https://github.com/notepad-plus-plus/notepad-plus-plus/blob/master/nppGpgPub.asc
+- Browser-style bookmark bar for pinning frequently used files
+- Folder support with dropdown menus ("Bookmark All Tabs" to capture your workspace)
+- Drag-and-drop reorder with visual insertion indicator
+- X close buttons with hover feedback for quick removal
+- File-type colored icons matching the tab accent system
+- Animated shimmer gradient background (Mauve > Blue > Teal cycling)
+- Right-click context menu: rename, remove, hide/show bar
+- XML persistence across sessions
 
+### Modernized Status Bar
 
-Supported OS
-------------
+- Pill-shaped segments with Catppuccin accent colors:
+  - **Doc Type** - Mauve pill
+  - **EOF Format** - Green pill
+  - **Encoding** - Blue pill
+  - **Typing Mode** - Peach pill
+- DPI-aware rounded badge rendering
+- 1px accent line at top matching the tab system
 
-All the Windows systems still supported by Microsoft are supported by Notepad++. However, not all Notepad++ users can or want to use the newest system. Here is the [Supported systems information](SUPPORTED_SYSTEM.md) you may need in case you are one of them.
+### Dark Theme
 
+- Full Catppuccin Mocha palette throughout
+- Deep dark backgrounds (Crust, Mantle, Base, Surface0)
+- Accent colors: Mauve, Blue, Teal, Green, Peach, Yellow
+- Dark title bar via DWM integration
+- All custom-drawn UI elements respect the dark theme
 
+## Building
 
+### Prerequisites
 
-Build Notepad++
----------------
+- Visual Studio 2022+ with C++ Desktop Development workload
+- Windows 10/11 SDK
 
-Please follow [build guide](BUILD.md) to build Notepad++ from source.
+### Build Steps
 
+```bash
+# Clone the repository
+git clone https://github.com/SysAdminDoc/NeonNote.git
+cd NeonNote
 
-Contribution
-------------
+# Build with MSBuild (Release x64)
+MSBuild.exe PowerEditor/visual.net/notepadPlus.vcxproj -p:Configuration=Release -p:Platform=x64
+```
 
-Contributions are welcome. Be mindful of our [Contribution Rules](CONTRIBUTING.md) to increase the likelihood of your contribution getting accepted.
+The output binary `NeonNote.exe` will be in `PowerEditor\bin64\`.
 
-[Notepad++ Contributors](https://github.com/notepad-plus-plus/notepad-plus-plus/graphs/contributors)
+## Screenshots
 
+Screenshots coming soon.
+
+## Credits
+
+- Based on [Notepad++](https://notepad-plus-plus.org/) by Don HO
+- Color palette: [Catppuccin Mocha](https://github.com/catppuccin/catppuccin)
+- Tab and UI design inspired by Chromium browser
+
+## License
+
+NeonNote is released under the [GNU General Public License v3.0](LICENSE), the same license as Notepad++.

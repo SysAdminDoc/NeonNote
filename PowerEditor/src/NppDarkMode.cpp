@@ -188,23 +188,23 @@ namespace NppDarkMode
 
 	};
 
-	// black (default)
+	// Catppuccin Mocha (default dark)
 	static constexpr Colors darkColors{
-		HEXRGB(0x202020),   // background
-		HEXRGB(0x383838),   // softerBackground
-		HEXRGB(0x454545),   // hotBackground
-		HEXRGB(0x202020),   // pureBackground
-		HEXRGB(0xB00000),   // errorBackground
-		HEXRGB(0xE0E0E0),   // textColor
-		HEXRGB(0xC0C0C0),   // darkerTextColor
-		HEXRGB(0x808080),   // disabledTextColor
-		HEXRGB(0xFFFF00),   // linkTextColor
-		HEXRGB(0x646464),   // edgeColor
-		HEXRGB(0x9B9B9B),   // hotEdgeColor
-		HEXRGB(0x484848)    // disabledEdgeColor
+		HEXRGB(0x1E1E2E),   // background       Base
+		HEXRGB(0x313244),   // softerBackground  Surface0
+		HEXRGB(0x45475A),   // hotBackground     Surface1
+		HEXRGB(0x181825),   // pureBackground    Mantle
+		HEXRGB(0x7D0000),   // errorBackground   dark red
+		HEXRGB(0xCDD6F4),   // textColor         Text
+		HEXRGB(0xBAC2DE),   // darkerTextColor   Subtext1
+		HEXRGB(0x6C7086),   // disabledTextColor Overlay0
+		HEXRGB(0x89B4FA),   // linkTextColor     Blue
+		HEXRGB(0x45475A),   // edgeColor         Surface1
+		HEXRGB(0x7F849C),   // hotEdgeColor      Overlay1
+		HEXRGB(0x313244)    // disabledEdgeColor Surface0
 	};
 
-	static constexpr int offsetEdge = HEXRGB(0x1C1C1C);
+	static constexpr int offsetEdge = HEXRGB(0x101010);
 
 	// red tone
 	static constexpr int offsetRed = HEXRGB(0x100000);
@@ -4199,7 +4199,11 @@ namespace NppDarkMode
 	void setDarkTitleBar(HWND hwnd)
 	{
 		constexpr DWORD win10Build2004 = 19041;
-		if (NppDarkMode::getWindowsBuildNumber() >= win10Build2004)
+		constexpr DWORD win11Build22000 = 22000;
+
+		const DWORD buildNum = NppDarkMode::getWindowsBuildNumber();
+
+		if (buildNum >= win10Build2004)
 		{
 			BOOL value = NppDarkMode::isEnabled() ? TRUE : FALSE;
 			::DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
@@ -4208,6 +4212,25 @@ namespace NppDarkMode
 		{
 			NppDarkMode::allowDarkModeForWindow(hwnd, NppDarkMode::isEnabled());
 			NppDarkMode::setTitleBarThemeColor(hwnd);
+		}
+
+		// Windows 11: apply Mica backdrop (frosted glass title bar) and rounded corners
+		if (buildNum >= win11Build22000)
+		{
+#ifndef DWMWA_SYSTEMBACKDROP_TYPE
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#define DWMWCP_ROUND 2
+#endif
+			// Mica (2 = DWMSBT_MAINWINDOW) on the title bar
+			DWORD backdrop = NppDarkMode::isEnabled() ? 2 : 0;
+			::DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop));
+
+			// Rounded corners
+			DWORD corner = DWMWCP_ROUND;
+			::DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corner, sizeof(corner));
 		}
 	}
 

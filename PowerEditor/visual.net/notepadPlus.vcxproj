@@ -27,9 +27,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>Notepad++</ProjectName>
+    <ProjectName>NeonNote</ProjectName>
     <ProjectGuid>{FCF60E65-1B78-4D1D-AB59-4FC00AC8C248}</ProjectGuid>
-    <RootNamespace>Notepad++</RootNamespace>
+    <RootNamespace>NeonNote</RootNamespace>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -179,6 +179,7 @@
     <ClCompile Include="..\src\WinControls\SplitterContainer\SplitterContainer.cpp" />
     <ClCompile Include="..\src\WinControls\StaticDialog\StaticDialog.cpp" />
     <ClCompile Include="..\src\WinControls\StatusBar\StatusBar.cpp" />
+    <ClCompile Include="..\src\WinControls\BookmarkBar\BookmarkBar.cpp" />
     <ClCompile Include="..\src\WinControls\TabBar\TabBar.cpp" />
     <ClCompile Include="..\src\WinControls\TaskList\TaskList.cpp" />
     <ClCompile Include="..\src\WinControls\TaskList\TaskListDlg.cpp" />
@@ -342,6 +343,7 @@
     <ClInclude Include="..\src\WinControls\SplitterContainer\SplitterContainer.h" />
     <ClInclude Include="..\src\WinControls\StaticDialog\StaticDialog.h" />
     <ClInclude Include="..\src\WinControls\StatusBar\StatusBar.h" />
+    <ClInclude Include="..\src\WinControls\BookmarkBar\BookmarkBar.h" />
     <ClInclude Include="..\src\WinControls\TabBar\TabBar.h" />
     <ClInclude Include="..\src\WinControls\TaskList\TaskList.h" />
     <ClInclude Include="..\src\WinControls\TaskList\TaskListDlg.h" />

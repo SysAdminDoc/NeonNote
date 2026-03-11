@@ -40,7 +40,7 @@ inline constexpr int NPP_CP_BIG5 = 950;
 #endif
 
 
-#define NPP_INTERNAL_FUNCTION_STR L"Notepad++::InternalFunction"
+#define NPP_INTERNAL_FUNCTION_STR L"NeonNote::InternalFunction"
 
 #define REBARBAND_SIZE sizeof(REBARBANDINFO)
 
