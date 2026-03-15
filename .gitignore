@@ -1,0 +1,14 @@
+build/
+*.user
+*.suo
+*.sln
+*.vcxproj*
+.vs/
+CMakeSettings.json
+out/
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.lib
+*.dll
